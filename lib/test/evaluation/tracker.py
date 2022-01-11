@@ -149,7 +149,7 @@ class Tracker:
 
         return output
 
-    def run_video(self, videofilepath, optional_box=None, debug=None, visdom_info=None, save_results=False):
+    def run_video(self, videofilepath, optional_box=None, debug=None, visdom_info=None, save_results=False, show_results=False):
         """Run the tracker with the vieofile.
         args:
             debug: Debug level.
@@ -182,11 +182,13 @@ class Tracker:
         output_boxes = []
 
         cap = cv.VideoCapture(videofilepath)
-        display_name = 'Display: ' + tracker.params.tracker_name
-        cv.namedWindow(display_name, cv.WINDOW_NORMAL | cv.WINDOW_KEEPRATIO)
-        cv.resizeWindow(display_name, 960, 720)
         success, frame = cap.read()
-        cv.imshow(display_name, frame)
+
+        display_name = 'Display: ' + tracker.params.tracker_name
+        if show_results:
+            cv.namedWindow(display_name, cv.WINDOW_NORMAL | cv.WINDOW_KEEPRATIO)
+            cv.resizeWindow(display_name, 960, 720)        
+            cv.imshow(display_name, frame)
 
         def _build_init_info(box):
             return {'init_bbox': box}
@@ -238,7 +240,8 @@ class Tracker:
                        font_color, 1)
 
             # Display the resulting frame
-            cv.imshow(display_name, frame_disp)
+            if show_results:
+                cv.imshow(display_name, frame_disp)
             key = cv.waitKey(1)
             if key == ord('q'):
                 break
@@ -257,7 +260,8 @@ class Tracker:
 
         # When everything done, release the capture
         cap.release()
-        cv.destroyAllWindows()
+        if show_results:
+            cv.destroyAllWindows()
 
         if save_results:
             if not os.path.exists(self.results_dir):
