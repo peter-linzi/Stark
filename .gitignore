@@ -1,0 +1,16 @@
+.vscode
+__pycache__
+venv/
+.idea/
+MANIFEST
+*.pyc
+dist/
+*.egg-info
+sequences
+data
+test
+profile
+checkpoints
+local.py
+*.onnx
+*.trt
