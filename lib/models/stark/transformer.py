@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 import time
-
+from lib.utils.timer import Timer
 
 def check_inf(tensor):
     return torch.isinf(tensor.detach()).any()
@@ -65,6 +65,8 @@ class Transformer(nn.Module):
         # 2021.1.7 Try dividing norm to avoid NAN
         self.divide_norm = divide_norm
         self.scale_factor = float(d_model // nhead) ** 0.5
+        self.t_encode = Timer()
+        self.t_decode = Timer()
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -86,7 +88,10 @@ class Transformer(nn.Module):
         if self.encoder is None:
             memory = feat
         else:
+            self.t_encode.tic()
             memory = self.encoder(feat, src_key_padding_mask=mask, pos=pos_embed)
+            self.t_encode.toc()
+            # print("t_encode = {:.3f}".format(self.t_encode.average_time))
         if mode == "encoder":
             return memory
         elif mode == "all":
@@ -96,8 +101,11 @@ class Transformer(nn.Module):
                 query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)  # (N,C) --> (N,1,C) --> (N,B,C)
             if self.decoder is not None:
                 tgt = torch.zeros_like(query_embed)
+                self.t_decode.tic()
                 hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                                   pos=pos_embed, query_pos=query_embed)
+                self.t_decode.toc()
+                # print("t_decode = {:.3f}".format(self.t_decode.average_time))
             else:
                 hs = query_embed.unsqueeze(0)
             if return_encoder_output:

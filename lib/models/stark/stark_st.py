@@ -1,11 +1,12 @@
 """
 STARK-ST Model (Spatio-Temporal).
 """
+from lib.utils.timer import Timer
 from .backbone import build_backbone
 from .transformer import build_transformer
 from .head import build_box_head, MLP
 from lib.models.stark.stark_s import STARKS
-
+from lib.utils.timer import Timer
 
 class STARKST(STARKS):
     """ This is the base class for Transformer Tracking """
@@ -21,7 +22,7 @@ class STARKST(STARKS):
         super().__init__(backbone, transformer, box_head, num_queries,
                          aux_loss=aux_loss, head_type=head_type)
         self.cls_head = cls_head
-
+        self.t_head = Timer()
     def forward(self, img=None, seq_dict=None, mode="backbone", run_box_head=False, run_cls_head=False):
         if mode == "backbone":
             return self.forward_backbone(img)
@@ -37,7 +38,10 @@ class STARKST(STARKS):
         output_embed, enc_mem = self.transformer(seq_dict["feat"], seq_dict["mask"], self.query_embed.weight,
                                                  seq_dict["pos"], return_encoder_output=True)
         # Forward the corner head
+        self.t_head.tic()
         out, outputs_coord = self.forward_head(output_embed, enc_mem, run_box_head=run_box_head, run_cls_head=run_cls_head)
+        self.t_head.toc()
+        # print("t_head = {:.3f}".format(self.t_head.average_time))
         return out, outputs_coord, output_embed
 
     def forward_head(self, hs, memory, run_box_head=False, run_cls_head=False):

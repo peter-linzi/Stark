@@ -4,11 +4,11 @@ from collections import OrderedDict
 from lib.test.evaluation.environment import env_settings
 import time
 import cv2 as cv
-
+import torch
 from lib.utils.lmdb_utils import decode_img
 from pathlib import Path
 import numpy as np
-
+from lib.utils.timer import Timer
 
 def trackerlist(name: str, parameter_name: str, dataset_name: str, run_ids = None, display_name: str = None,
                 result_only=False):
@@ -214,9 +214,16 @@ class Tracker:
                 tracker.initialize(frame, _build_init_info(init_state))
                 output_boxes.append(init_state)
                 break
+        frame_cnt = 0
 
+        t_cap = Timer()
+        t_track = Timer()        
         while True:
+            frame_cnt = frame_cnt  + 1
+            print("frame_cnt = ", frame_cnt)
+            t_cap.tic()
             ret, frame = cap.read()
+            t_cap.toc()
 
             if frame is None:
                 break
@@ -224,7 +231,9 @@ class Tracker:
             frame_disp = frame.copy()
 
             # Draw box
+            t_track.tic()
             out = tracker.track(frame)
+            t_track.toc()
             state = [int(s) for s in out['target_bbox']]
             output_boxes.append(state)
 
@@ -238,7 +247,8 @@ class Tracker:
                        font_color, 1)
             cv.putText(frame_disp, 'Press q to quit', (20, 80), cv.FONT_HERSHEY_COMPLEX_SMALL, 1,
                        font_color, 1)
-
+            cv.putText(frame_disp, '{:.1f} fps'.format(1.0 / t_track.average_time), (500, 30), cv.FONT_HERSHEY_SIMPLEX, 1,
+                       (0,0,255), 2)
             # Display the resulting frame
             if show_results:
                 cv.imshow(display_name, frame_disp)
@@ -257,7 +267,8 @@ class Tracker:
                 init_state = [x, y, w, h]
                 tracker.initialize(frame, _build_init_info(init_state))
                 output_boxes.append(init_state)
-
+            # print("t_cap = {:0.3f}, t_track = {:0.3f}".format(t_cap.average_time, t_track.average_time))
+            # print("t_cap = {:0.3f}".format(t_cap.average_time))
         # When everything done, release the capture
         cap.release()
         if show_results:
@@ -268,6 +279,18 @@ class Tracker:
                 os.makedirs(self.results_dir)
             video_name = Path(videofilepath).stem
             base_results_path = os.path.join(self.results_dir, 'video_{}'.format(video_name))
+
+            cap = cv.VideoCapture(videofilepath)
+            video_save_file = base_results_path + '.avi'
+            video_writer = cv.VideoWriter(video_save_file, cv.VideoWriter_fourcc('m', 'p', '4', 'v'), 30, frame_size, True)
+            for [x, y, w, h] in output_boxes:
+                ret, frame = cap.read()
+                if frame is None:
+                    break
+                cv.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                video_writer.write(frame)
+            cap.release()
+            video_writer.release()
 
             tracked_bb = np.array(output_boxes).astype(int)
             bbox_file = '{}.txt'.format(base_results_path)

@@ -9,6 +9,7 @@ from lib.utils.merge import merge_template_search
 from lib.models.stark import build_starkst
 from lib.test.tracker.stark_utils import Preprocessor
 from lib.utils.box_ops import clip_box
+from lib.utils.timer import Timer
 
 
 class STARK_ST(BaseTracker):
@@ -41,6 +42,8 @@ class STARK_ST(BaseTracker):
             self.update_intervals = self.cfg.DATA.MAX_SAMPLE_INTERVAL
         print("Update interval is: ", self.update_intervals)
         self.num_extra_template = len(self.update_intervals)
+        self.t_sample = Timer()
+        self.t_backbone = Timer()
 
     def initialize(self, image, info: dict):
         # initialize z_dict_list
@@ -68,11 +71,17 @@ class STARK_ST(BaseTracker):
         H, W, _ = image.shape
         self.frame_id += 1
         # get the t-th search region
+        self.t_sample.tic()
         x_patch_arr, resize_factor, x_amask_arr = sample_target(image, self.state, self.params.search_factor,
                                                                 output_sz=self.params.search_size)  # (x1, y1, w, h)
         search = self.preprocessor.process(x_patch_arr, x_amask_arr)
+        self.t_sample.toc()
+
         with torch.no_grad():
+            self.t_backbone.tic()
             x_dict = self.network.forward_backbone(search)
+            self.t_backbone.toc()
+            # print("t_backbone = {:.3f}".format(self.t_backbone.average_time))
             # merge the template and the search
             feat_dict_list = self.z_dict_list + [x_dict]
             seq_dict = merge_template_search(feat_dict_list)
