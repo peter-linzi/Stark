@@ -3,6 +3,7 @@ Backbone modules.
 """
 
 import torch
+from torch import tensor
 import torch.nn.functional as F
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
@@ -79,15 +80,16 @@ class BackboneBase(nn.Module):
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)  # method in torchvision
         self.num_channels = num_channels
 
-    def forward(self, tensor_list: NestedTensor):
-        xs = self.body(tensor_list.tensors)
+    def forward(self, tensor: torch.Tensor, mask:torch.Tensor):
+        xs = self.body(tensor)
         out: Dict[str, NestedTensor] = {}
         for name, x in xs.items():
-            m = tensor_list.mask
+            m = mask
             assert m is not None
             mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
-            out[name] = NestedTensor(x, mask)
-        return out
+            # out[name] = NestedTensor(x, mask)
+
+        return x, mask
 
 
 class Backbone(BackboneBase):
@@ -129,16 +131,17 @@ class Joiner(nn.Sequential):
     def __init__(self, backbone, position_embedding):
         super().__init__(backbone, position_embedding)
 
-    def forward(self, tensor_list: NestedTensor, mode=None):
-        xs = self[0](tensor_list)
+    def forward(self, tensor: torch.Tensor, mask: torch.Tensor, mode=None):
+        tenosor2, mask2 = self[0](tensor, mask)
         out: List[NestedTensor] = []
         pos = []
-        for name, x in xs.items():
-            out.append(x)
-            # position encoding
-            pos.append(self[1](x).to(x.tensors.dtype))
+        # for name, x in xs.items():
+        # x=xs
+        # out.append(x)
+        # position encoding
+        pos = self[1](tenosor2, mask2).to(tensor.dtype)
 
-        return out, pos
+        return tenosor2, mask2, pos
 
 
 def build_backbone(cfg):

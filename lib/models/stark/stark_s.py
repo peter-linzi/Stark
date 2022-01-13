@@ -45,16 +45,16 @@ class STARKS(nn.Module):
         else:
             raise ValueError
 
-    def forward_backbone(self, input: NestedTensor):
+    def forward_backbone(self, tensors: torch.Tensor, mask:torch.Tensor):
         """The input type is NestedTensor, which consists of:
                - tensor: batched images, of shape [batch_size x 3 x H x W]
                - mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
         """
-        assert isinstance(input, NestedTensor)
+        # assert isinstance(input, NestedTensor)
         # Forward the backbone
-        output_back, pos = self.backbone(input)  # features & masks, position embedding for the search
+        tensor, mask, pos = self.backbone(tensors, mask)  # features & masks, position embedding for the search
         # Adjust the shapes
-        return self.adjust(output_back, pos)
+        return self.adjust(tensor, mask, pos)
 
     def forward_transformer(self, seq_dict, run_box_head=True, run_cls_head=False):
         if self.aux_loss:
@@ -91,16 +91,18 @@ class STARKS(nn.Module):
                 out['aux_outputs'] = self._set_aux_loss(outputs_coord)
             return out, outputs_coord
 
-    def adjust(self, output_back: list, pos_embed: list):
+    def adjust(self, tensor, mask, pos_embed):
         """
         """
-        src_feat, mask = output_back[-1].decompose()
+        # src_feat, mask = output_back[-1].decompose()
+        src_feat = tensor
+
         assert mask is not None
         # reduce channel
         feat = self.bottleneck(src_feat)  # (B, C, H, W)
         # adjust shapes
         feat_vec = feat.flatten(2).permute(2, 0, 1)  # HWxBxC
-        pos_embed_vec = pos_embed[-1].flatten(2).permute(2, 0, 1)  # HWxBxC
+        pos_embed_vec = pos_embed.flatten(2).permute(2, 0, 1)  # HWxBxC
         mask_vec = mask.flatten(1)  # BxHW
         return {"feat": feat_vec, "mask": mask_vec, "pos": pos_embed_vec}
 

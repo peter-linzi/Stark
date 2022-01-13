@@ -24,9 +24,10 @@ class PositionEmbeddingSine(nn.Module):
             scale = 2 * math.pi
         self.scale = scale
 
-    def forward(self, tensor_list: NestedTensor):
-        x = tensor_list.tensors
-        mask = tensor_list.mask
+    def forward(self, tensor, mask):
+        # x = tensor_list.tensors
+        # mask = tensor_list.mask
+        x = tensor
         assert mask is not None
         not_mask = ~mask # (b,h,w)
         y_embed = not_mask.cumsum(1, dtype=torch.float32)  # cumulative sum along axis 1 (h axis) --> (b, h, w)

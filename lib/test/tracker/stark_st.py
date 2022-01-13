@@ -1,3 +1,4 @@
+from tempfile import template
 from lib.test.tracker.basetracker import BaseTracker
 import torch
 from lib.train.data.processing_utils import sample_target
@@ -53,7 +54,7 @@ class STARK_ST(BaseTracker):
                                                       output_sz=self.params.template_size)
         template1 = self.preprocessor.process(z_patch_arr1, z_amask_arr1)
         with torch.no_grad():
-            self.z_dict1 = self.network.forward_backbone(template1)
+            self.z_dict1 = self.network.forward_backbone(template1.tensors, template1.mask)
         # get the complete z_dict_list
         self.z_dict_list.append(self.z_dict1)
         for i in range(self.num_extra_template):
@@ -79,7 +80,7 @@ class STARK_ST(BaseTracker):
 
         with torch.no_grad():
             self.t_backbone.tic()
-            x_dict = self.network.forward_backbone(search)
+            x_dict = self.network.forward_backbone(search.tensors, search.mask)
             self.t_backbone.toc()
             # print("t_backbone = {:.3f}".format(self.t_backbone.average_time))
             # merge the template and the search
