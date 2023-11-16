@@ -86,10 +86,10 @@ class BackboneBase(nn.Module):
         for name, x in xs.items():
             m = mask
             assert m is not None
-            mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
+            m = F.interpolate(m[None].float(), size=x.shape[-2:])[0].to(torch.bool)
             # out[name] = NestedTensor(x, mask)
 
-        return x, mask
+        return x, m
 
 
 class Backbone(BackboneBase):
@@ -132,16 +132,17 @@ class Joiner(nn.Sequential):
         super().__init__(backbone, position_embedding)
 
     def forward(self, tensor: torch.Tensor, mask: torch.Tensor, mode=None):
-        tenosor2, mask2 = self[0](tensor, mask)
+        # torch.onnx.export(self[0], (tensor, mask), "checkpoints/onnx/resnet.onnx", opset_version=11)
+        tensor2, mask2 = self[0](tensor, mask)
         out: List[NestedTensor] = []
         pos = []
         # for name, x in xs.items():
         # x=xs
         # out.append(x)
         # position encoding
-        pos = self[1](tenosor2, mask2).to(tensor.dtype)
-
-        return tenosor2, mask2, pos
+        pos = self[1](tensor2, mask2).to(tensor.dtype)
+        # torch.onnx.export(self[1], (tensor2, mask2), "checkpoints/onnx/position_encoding.onnx", opset_version=11)
+        return tensor2, mask2, pos
 
 
 def build_backbone(cfg):

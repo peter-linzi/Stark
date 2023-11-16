@@ -67,13 +67,17 @@ class Transformer(nn.Module):
         self.scale_factor = float(d_model // nhead) ** 0.5
         self.t_encode = Timer()
         self.t_decode = Timer()
-
+        
+    def set_query_dembed(self, query_embed):
+        self.query_embed = query_embed
+    
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, feat, mask, query_embed, pos_embed, mode="all", return_encoder_output=False):
+    # def forward(self, feat, mask, query_embed, pos_embed, mode="all", return_encoder_output=False):
+    def forward(self, feat, mask, pos_embed, mode="all", return_encoder_output=True):
         """
 
         :param feat: (H1W1+H2W2, bs, C)
@@ -84,6 +88,7 @@ class Transformer(nn.Module):
         :param return_encoder_output: whether to return the output of encoder (together with decoder)
         :return:
         """
+        query_embed = self.query_embed
         assert mode in ["all", "encoder"]
         if self.encoder is None:
             memory = feat

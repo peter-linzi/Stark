@@ -105,6 +105,7 @@ class STARKS(nn.Module):
         pos_embed_vec = pos_embed.flatten(2).permute(2, 0, 1)  # HWxBxC
         mask_vec = mask.flatten(1)  # BxHW
         return {"feat": feat_vec, "mask": mask_vec, "pos": pos_embed_vec}
+        # return feat_vec, mask_vec, pos_embed_vec
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_coord):

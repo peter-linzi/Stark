@@ -179,11 +179,12 @@ class Tracker:
         assert os.path.isfile(videofilepath), "Invalid param {}".format(videofilepath)
         ", videofilepath must be a valid videofile"
 
+        output_logits = []
         output_boxes = []
 
         cap = cv.VideoCapture(videofilepath)
         success, frame = cap.read()
-
+        frame_size = (frame.shape[1], frame.shape[0])
         display_name = 'Display: ' + tracker.params.tracker_name
         if show_results:
             cv.namedWindow(display_name, cv.WINDOW_NORMAL | cv.WINDOW_KEEPRATIO)
@@ -200,7 +201,7 @@ class Tracker:
             assert isinstance(optional_box, (list, tuple))
             assert len(optional_box) == 4, "valid box's foramt is [x,y,w,h]"
             tracker.initialize(frame, _build_init_info(optional_box))
-            output_boxes.append(optional_box)
+            output_boxes.append(list(map(int,optional_box)))
         else:
             while True:
                 # cv.waitKey()
@@ -211,11 +212,13 @@ class Tracker:
 
                 x, y, w, h = cv.selectROI(display_name, frame_disp, fromCenter=False)
                 init_state = [x, y, w, h]
+                print("video = {} init box = {}".format(videofilepath, init_state))
+                # return
                 tracker.initialize(frame, _build_init_info(init_state))
                 output_boxes.append(init_state)
                 break
         frame_cnt = 0
-
+        output_logits.append(1.0)
         t_cap = Timer()
         t_track = Timer()        
         while True:
@@ -236,7 +239,7 @@ class Tracker:
             t_track.toc()
             state = [int(s) for s in out['target_bbox']]
             output_boxes.append(state)
-
+            output_logits.append(out['conf_score'])
             cv.rectangle(frame_disp, (state[0], state[1]), (state[2] + state[0], state[3] + state[1]),
                          (0, 255, 0), 5)
 
@@ -283,11 +286,12 @@ class Tracker:
             cap = cv.VideoCapture(videofilepath)
             video_save_file = base_results_path + '.avi'
             video_writer = cv.VideoWriter(video_save_file, cv.VideoWriter_fourcc('m', 'p', '4', 'v'), 30, frame_size, True)
-            for [x, y, w, h] in output_boxes:
+            for ([x, y, w, h], logit) in zip(output_boxes, output_logits):
                 ret, frame = cap.read()
                 if frame is None:
                     break
                 cv.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                cv.putText(frame, "{:.1f}".format(logit), (int(x+w/2-10), y-10), cv.FONT_HERSHEY_SIMPLEX ,1,(0,0,255), 2)
                 video_writer.write(frame)
             cap.release()
             video_writer.release()

@@ -17,7 +17,8 @@ class STARK_ST(BaseTracker):
     def __init__(self, params, dataset_name):
         super(STARK_ST, self).__init__(params)
         network = build_starkst(params.cfg)
-        network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu')['net'], strict=True)
+        network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu')['net'], strict=False)
+        network.transformer.set_query_dembed(network.query_embed.weight)
         self.cfg = params.cfg
         self.network = network.cuda()
         self.network.eval()
@@ -54,7 +55,9 @@ class STARK_ST(BaseTracker):
                                                       output_sz=self.params.template_size)
         template1 = self.preprocessor.process(z_patch_arr1, z_amask_arr1)
         with torch.no_grad():
+            # torch.onnx.export(self.network, (template1.tensors, template1.mask), "checkpoints/onnx/backbone_128.onnx", opset_version=11)
             self.z_dict1 = self.network.forward_backbone(template1.tensors, template1.mask)
+
         # get the complete z_dict_list
         self.z_dict_list.append(self.z_dict1)
         for i in range(self.num_extra_template):
@@ -80,6 +83,7 @@ class STARK_ST(BaseTracker):
 
         with torch.no_grad():
             self.t_backbone.tic()
+            torch.onnx.export(self.network, (search.tensors, search.mask), "checkpoints/onnx/backbone_512.onnx", opset_version=11)
             x_dict = self.network.forward_backbone(search.tensors, search.mask)
             self.t_backbone.toc()
             # print("t_backbone = {:.3f}".format(self.t_backbone.average_time))
@@ -87,13 +91,17 @@ class STARK_ST(BaseTracker):
             feat_dict_list = self.z_dict_list + [x_dict]
             seq_dict = merge_template_search(feat_dict_list)
             # run the transformer
+            # torch.onnx.export(self.network, (seq_dict["feat"], seq_dict["mask"], seq_dict["pos"]), "checkpoints/onnx/transformer_head_refind.onnx", opset_version=11)
+            
             out_dict, _, _ = self.network.forward_transformer(seq_dict=seq_dict, run_box_head=True, run_cls_head=True)
         # get the final result
         pred_boxes = out_dict['pred_boxes'].view(-1, 4)
         # Baseline: Take the mean of all pred boxes as the final result
         pred_box = (pred_boxes.mean(dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
         # get the final box result
-        self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
+        box = self.map_box_back(pred_box, resize_factor)
+        # self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
+        self.state = clip_box(box, H, W, margin=10)
         # get confidence score (whether the search region is reliable)
         conf_score = out_dict["pred_logits"].view(-1).sigmoid().item()
         # update template
@@ -103,7 +111,7 @@ class STARK_ST(BaseTracker):
                                                             output_sz=self.params.template_size)  # (x1, y1, w, h)
                 template_t = self.preprocessor.process(z_patch_arr, z_amask_arr)
                 with torch.no_grad():
-                    z_dict_t = self.network.forward_backbone(template_t)
+                    z_dict_t = self.network.forward_backbone(template_t.tensors, template_t.mask)
                 self.z_dict_list[idx+1] = z_dict_t  # the 1st element of z_dict_list is template from the 1st frame
 
         # for debug
